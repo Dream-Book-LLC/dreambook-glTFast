@@ -69,13 +69,14 @@ namespace GLTFast
     {
         static GltfJsonUtilityParser s_Parser;
 
-        /// <inheritdoc cref="GltfImportBase(IDownloadProvider,IDeferAgent,IMaterialGenerator,ICodeLogger)"/>
+        /// <inheritdoc cref="GltfImportBase(IDownloadProvider,IDeferAgent,IMaterialGenerator,ICodeLogger,IMeshProcessor)"/>
         public GltfImport(
             IDownloadProvider downloadProvider = null,
             IDeferAgent deferAgent = null,
             IMaterialGenerator materialGenerator = null,
-            ICodeLogger logger = null
-        ) : base(downloadProvider, deferAgent, materialGenerator, logger) { }
+            ICodeLogger logger = null,
+            IMeshProcessor meshProcessor = null
+        ) : base(downloadProvider, deferAgent, materialGenerator, logger, meshProcessor) { }
 
         /// <inheritdoc />
         protected override RootBase ParseJson(string json)
@@ -90,13 +91,14 @@ namespace GLTFast
     public abstract class GltfImportBase<TRoot> : GltfImportBase, IGltfReadable<TRoot>
         where TRoot : RootBase
     {
-        /// <inheritdoc cref="GltfImportBase(IDownloadProvider,IDeferAgent,IMaterialGenerator,ICodeLogger)"/>
+        /// <inheritdoc cref="GltfImportBase(IDownloadProvider,IDeferAgent,IMaterialGenerator,ICodeLogger,IMeshProcessor)"/>
         public GltfImportBase(
             IDownloadProvider downloadProvider = null,
             IDeferAgent deferAgent = null,
             IMaterialGenerator materialGenerator = null,
-            ICodeLogger logger = null
-        ) : base(downloadProvider, deferAgent, materialGenerator, logger) { }
+            ICodeLogger logger = null,
+            IMeshProcessor meshProcessor = null
+        ) : base(downloadProvider, deferAgent, materialGenerator, logger, meshProcessor) { }
 
         TRoot m_Root;
 
@@ -183,6 +185,7 @@ namespace GLTFast
 
         IDownloadProvider m_DownloadProvider;
         IMaterialGenerator m_MaterialGenerator;
+        readonly IMeshProcessor m_MeshProcessor;
 
         Dictionary<Type, ImportAddonInstance> m_ImportInstances;
 
@@ -294,11 +297,13 @@ namespace GLTFast
         /// <param name="deferAgent">Provides custom update loop behavior for better frame rate control</param>
         /// <param name="materialGenerator">Provides custom glTF to Unity material conversion</param>
         /// <param name="logger">Provides custom message logging</param>
+        /// <param name="meshProcessor">Optionally replaces decoded meshes before they are retained</param>
         public GltfImportBase(
             IDownloadProvider downloadProvider = null,
             IDeferAgent deferAgent = null,
             IMaterialGenerator materialGenerator = null,
-            ICodeLogger logger = null
+            ICodeLogger logger = null,
+            IMeshProcessor meshProcessor = null
             )
         {
             m_DownloadProvider = downloadProvider ?? new DefaultDownloadProvider();
@@ -323,6 +328,7 @@ namespace GLTFast
                 DeferAgent = deferAgent;
             }
             m_MaterialGenerator = materialGenerator ?? MaterialGenerator.GetDefaultMaterialGenerator();
+            m_MeshProcessor = meshProcessor;
 
             Logger = logger;
 
@@ -2489,7 +2495,10 @@ namespace GLTFast
         {
             foreach (var meshOrder in m_MeshOrders)
             {
-                var mesh = await meshOrder.generator.CreateMeshResult();
+                var decodedMesh = await meshOrder.generator.CreateMeshResult();
+                var mesh = m_MeshProcessor?.ProcessMesh(decodedMesh) ?? decodedMesh;
+                if (!ReferenceEquals(decodedMesh, mesh) && !ReferenceEquals(decodedMesh, null))
+                    SafeDestroy(decodedMesh);
                 if (!ReferenceEquals(mesh, null))
                 {
                     foreach (var meshSubset in meshOrder.Recipients)
