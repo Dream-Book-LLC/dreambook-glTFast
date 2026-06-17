@@ -76,6 +76,20 @@ namespace GLTFast
             set => anisotropicFilterLevel = value;
         }
 
+        /// <summary>
+        /// Create a separate Unity mesh result for every glTF mesh primitive instead
+        /// of combining compatible primitives into sub-meshes.
+        /// </summary>
+        /// <remarks>
+        /// This can reduce downstream mesh processing when primitives need distinct
+        /// GameObjects, at the cost of additional Unity mesh objects and draw calls.
+        /// </remarks>
+        public bool MeshesPerPrimitive
+        {
+            get => meshesPerPrimitive;
+            set => meshesPerPrimitive = value;
+        }
+
         [SerializeField]
         [Tooltip("Controls how node names are created.")]
         NameImportMethod nodeNameMethod = NameImportMethod.Original;
@@ -103,5 +117,9 @@ namespace GLTFast
         [SerializeField]
         [Tooltip("Anisotropic filtering level for imported textures.")]
         int anisotropicFilterLevel = 1;
+
+        [SerializeField]
+        [Tooltip("Create a separate Unity mesh result for every glTF mesh primitive.")]
+        bool meshesPerPrimitive;
     }
 }

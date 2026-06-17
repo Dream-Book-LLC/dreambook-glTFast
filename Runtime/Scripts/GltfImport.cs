@@ -3291,20 +3291,22 @@ namespace GLTFast
                 var mesh = Root.Meshes[meshIndex];
                 // TODO: Optimized path for single primitive meshes!
                 var clusteredPrimitives = new Dictionary<VertexBufferDescriptor, PrimitiveSet>();
-#if DRACO_IS_ENABLED
                 var singlePrimitives = new List<PrimitiveSingle>();
-#endif
                 for (var primIndex = 0; primIndex < mesh.Primitives.Count; primIndex++)
                 {
                     var primitive = mesh.Primitives[primIndex];
 #if DRACO_IS_ENABLED
                     var isDraco = primitive.IsDracoCompressed;
-                    if (isDraco)
+#endif
+                    if (m_Settings.MeshesPerPrimitive
+#if DRACO_IS_ENABLED
+                        || isDraco
+#endif
+                        )
                     {
                         singlePrimitives.Add(new PrimitiveSingle(primIndex, primitive));
                     }
                     else
-#endif
                     {
                         var vertexBufferDesc = VertexBufferDescriptor.FromPrimitive(primitive);
                         if (!clusteredPrimitives.ContainsKey(vertexBufferDesc))
@@ -3385,7 +3387,6 @@ namespace GLTFast
 
                     meshNumeration++;
                 }
-#if DRACO_IS_ENABLED
                 foreach (var primitiveSingle in singlePrimitives)
                 {
 #if DEBUG
@@ -3424,12 +3425,8 @@ namespace GLTFast
 
                     meshNumeration++;
                 }
-
-#endif
                 meshAssignmentCounter += clusteredPrimitives.Count;
-#if DRACO_IS_ENABLED
                 meshAssignmentCounter += singlePrimitives.Count;
-#endif
                 meshAssignmentIndices[meshIndex + 1] = meshAssignmentCounter;
             }
 
