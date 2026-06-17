@@ -1,7 +1,7 @@
 {
-  "name": "com.atteneder.gltfast",
-  "version": "6.14.1",
-  "displayName": "glTFast",
+  "name": "com.unity.cloud.gltfast",
+  "version": "6.14.1-dreambook.1",
+  "displayName": "Unity glTFast (DreamBook Fork)",
   "description": "Use glTFast to import and export glTF 3D files efficiently at runtime or in the Editor",
   "unity": "2021.3",
   "keywords": [
@@ -19,6 +19,10 @@
     "name": "Andreas Atteneder",
     "email": "andreas.atteneder@gmail.com",
     "url": "https://pixel.engineer"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:Dream-Book-LLC/dreambook-glTFast.git"
   },
   "dependencies": {
     "com.unity.modules.jsonserialize": "1.0.0",
