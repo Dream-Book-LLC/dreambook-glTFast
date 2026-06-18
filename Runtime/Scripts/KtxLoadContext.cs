@@ -22,16 +22,17 @@ namespace GLTFast {
         }
 
         public override async Task<TextureResult> LoadTexture2D(bool linear) {
-            // TODO: Wait for KTX for Unity to offer a non-slice API and avoid slice here.
-            var errorCode = m_KtxTexture.Open(m_Data);
-            if (errorCode != ErrorCode.Success) {
-                return new TextureResult(errorCode);
+            try {
+                // TODO: Wait for KTX for Unity to offer a non-slice API and avoid slice here.
+                var errorCode = m_KtxTexture.Open(m_Data);
+                if (errorCode != ErrorCode.Success) return new TextureResult(errorCode);
+                return await m_KtxTexture.LoadTexture2D(linear);
             }
-
-            var result = await m_KtxTexture.LoadTexture2D(linear);
-
-            m_KtxTexture.Dispose();
-            return result;
+            finally {
+                m_KtxTexture.Dispose();
+                m_KtxTexture = null;
+                m_Data = default;
+            }
         }
     }
 }

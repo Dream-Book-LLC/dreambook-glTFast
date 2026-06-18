@@ -1755,15 +1755,9 @@ namespace GLTFast
 
 #if KTX_IS_ENABLED
         async Task<bool> WaitForKtxDownloads() {
-            var tasks = new Task<bool>[m_KtxDownloadTasks.Count];
-            var i = 0;
             foreach( var dl in m_KtxDownloadTasks ) {
-                tasks[i] = ProcessKtxDownload(dl.Key, dl.Value);
-                i++;
-            }
-            await Task.WhenAll(tasks);
-            foreach (var task in tasks) {
-                if (!task.Result) return false;
+                if (!await ProcessKtxDownload(dl.Key, dl.Value)) return false;
+                await DeferAgent.BreakPoint();
             }
             return true;
         }
@@ -3176,7 +3170,27 @@ namespace GLTFast
 
                             m_Images[i] = txt;
                             m_Resources.Add(txt);
+
+                            // Decode and upload before allocating the next image buffer. Keeping all
+                            // pinned compressed images alive made texture memory scale with image count.
+                            icc.jobHandle.Complete();
+#if UNITY_IMAGECONVERSION
+                            txt.LoadImage(
+                                icc.buffer,
+#if UNITY_VISIONOS
+                                false
+#else
+                                !m_Settings.TexturesReadable && !m_ImageReadable[i]
+#endif
+                            );
+#endif
+                            icc.gcHandle.Free();
+                            icc.buffer = null;
+                            contexts.Remove(icc);
                             Profiler.EndSample();
+#if KTX_IS_ENABLED
+                            await DeferAgent.BreakPoint();
+#endif
                         }
                     }
                 }
@@ -4073,7 +4087,7 @@ namespace GLTFast
         }
 
         async Task ProcessKtxLoadContexts() {
-            var maxCount = SystemInfo.processorCount+1;
+            const int maxCount = 1;
 
             var totalCount = m_KtxLoadContextsBuffer.Count;
             var startedCount = 0;
