@@ -31,6 +31,21 @@ namespace GLTFast.Vertex
         public float3 position;
     }
 
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    unsafe struct VPosNormCompact
+    {
+        public float3 position;
+        public fixed short normal[4];
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    unsafe struct VPosNormTanCompact
+    {
+        public float3 position;
+        public fixed short normal[4];
+        public fixed short tangent[4];
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     struct VTexCoord1
     {

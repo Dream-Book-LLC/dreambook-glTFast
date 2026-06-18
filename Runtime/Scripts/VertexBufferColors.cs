@@ -23,13 +23,15 @@ namespace GLTFast
         readonly ICodeLogger m_Logger;
 
         NativeArray<float4> m_Data;
+        readonly bool m_Compact;
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
         List<AtomicSafetyHandle> m_SafetyHandles;
 #endif
 
-        public VertexBufferColors(int vertexCount, ICodeLogger logger)
+        public VertexBufferColors(int vertexCount, ICodeLogger logger, bool compact = false)
         {
             m_Logger = logger;
+            m_Compact = compact;
             Profiler.BeginSample("VertexBufferColors.Allocate");
             m_Data = new NativeArray<float4>(vertexCount, VertexBufferGeneratorBase.defaultAllocator);
             Profiler.EndSample();
@@ -85,7 +87,11 @@ namespace GLTFast
 
         public void AddDescriptors(VertexAttributeDescriptor[] dst, int offset, int stream)
         {
-            dst[offset] = new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.Float32, 4, stream);
+            dst[offset] = new VertexAttributeDescriptor(
+                VertexAttribute.Color,
+                m_Compact ? VertexAttributeFormat.UNorm8 : VertexAttributeFormat.Float32,
+                4,
+                stream);
         }
 
         public void ApplyOnMesh(
@@ -95,7 +101,24 @@ namespace GLTFast
             )
         {
             Profiler.BeginSample("ApplyUVs");
-            msh.SetVertexBufferData(m_Data, 0, 0, m_Data.Length, stream, flags);
+            if (m_Compact)
+            {
+                var compactData = new NativeArray<Color32>(m_Data.Length, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+                for (var i = 0; i < m_Data.Length; i++)
+                {
+                    var color = math.saturate(m_Data[i]) * byte.MaxValue;
+                    compactData[i] = new Color32(
+                        (byte)math.round(color.x), (byte)math.round(color.y),
+                        (byte)math.round(color.z), (byte)math.round(color.w));
+                }
+                msh.SetVertexBufferData(compactData, 0, 0, compactData.Length, stream, flags);
+                compactData.Dispose();
+                m_Data.Dispose();
+            }
+            else
+            {
+                msh.SetVertexBufferData(m_Data, 0, 0, m_Data.Length, stream, flags);
+            }
             Profiler.EndSample();
         }
 

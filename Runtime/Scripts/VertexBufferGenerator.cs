@@ -24,6 +24,9 @@ namespace GLTFast
         where TMainBuffer : unmanaged
     {
         NativeArray<TMainBuffer> m_Data;
+        NativeArray<float3> m_NormalScratch;
+        NativeArray<float4> m_TangentScratch;
+        readonly bool m_Compact;
 
         bool m_HasNormals;
         bool m_HasTangents;
@@ -64,9 +67,11 @@ namespace GLTFast
             return false;
         }
 
-        public VertexBufferGenerator(int primitiveCount, GltfImportBase gltfImport)
+        public VertexBufferGenerator(int primitiveCount, GltfImportBase gltfImport, bool compact = false)
             : base(primitiveCount, gltfImport)
-        { }
+        {
+            m_Compact = compact;
+        }
 
         public override void AddPrimitive(Attributes att)
         {
@@ -99,6 +104,10 @@ namespace GLTFast
                 await Task.Yield();
             }
             jh.Value.Complete();
+            if (m_Compact)
+            {
+                PackCompactMainBuffer();
+            }
             return true;
         }
 
@@ -112,6 +121,13 @@ namespace GLTFast
             var jobCount = 0;
 
             var firstAttributes = m_Attributes[0];
+
+            if (m_Compact)
+            {
+                m_NormalScratch = new NativeArray<float3>(VertexCount, defaultAllocator);
+                if (firstAttributes.TANGENT >= 0)
+                    m_TangentScratch = new NativeArray<float4>(VertexCount, defaultAllocator);
+            }
 
             var uvSetCount = firstAttributes.GetTexCoordsCount();
             if (uvSetCount > 0)
@@ -141,7 +157,7 @@ namespace GLTFast
             if (m_HasColors)
             {
                 jobCount += m_Attributes.Length;
-                m_Colors = new VertexBufferColors(VertexCount, m_GltfImport.Logger);
+                m_Colors = new VertexBufferColors(VertexCount, m_GltfImport.Logger, m_Compact);
             }
 
             m_HasBones = firstAttributes.WEIGHTS_0 >= 0 && firstAttributes.JOINTS_0 >= 0;
@@ -286,8 +302,10 @@ namespace GLTFast
             var h = GetVector3Job(
                 m_GltfImport,
                 nrmAcc,
-                (float3*)(vDataPtr + outputByteStride * VertexIntervals[i] + 12),
-                outputByteStride,
+                m_Compact
+                    ? (float3*)m_NormalScratch.GetUnsafePtr() + VertexIntervals[i]
+                    : (float3*)(vDataPtr + outputByteStride * VertexIntervals[i] + 12),
+                m_Compact ? sizeof(float3) : outputByteStride,
                 nrmAcc.normalized
 
             //, normals need to be unit length
@@ -324,8 +342,10 @@ namespace GLTFast
                 tanAcc.count,
                 tanAcc.componentType,
                 inputByteStride,
-                (float4*)(vDataPtr + outputByteStride * VertexIntervals[i] + 24),
-                outputByteStride,
+                m_Compact
+                    ? (float4*)m_TangentScratch.GetUnsafePtr() + VertexIntervals[i]
+                    : (float4*)(vDataPtr + outputByteStride * VertexIntervals[i] + 24),
+                m_Compact ? sizeof(float4) : outputByteStride,
                 tanAcc.normalized
             );
             if (h.HasValue)
@@ -411,12 +431,20 @@ namespace GLTFast
             vadCount++;
             if (m_HasNormals)
             {
-                m_Descriptors[vadCount] = new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3, stream);
+                m_Descriptors[vadCount] = new VertexAttributeDescriptor(
+                    VertexAttribute.Normal,
+                    m_Compact ? VertexAttributeFormat.SNorm16 : VertexAttributeFormat.Float32,
+                    m_Compact ? 4 : 3,
+                    stream);
                 vadCount++;
             }
             if (m_HasTangents)
             {
-                m_Descriptors[vadCount] = new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.Float32, 4, stream);
+                m_Descriptors[vadCount] = new VertexAttributeDescriptor(
+                    VertexAttribute.Tangent,
+                    m_Compact ? VertexAttributeFormat.SNorm16 : VertexAttributeFormat.Float32,
+                    4,
+                    stream);
                 vadCount++;
             }
             stream++;
@@ -488,6 +516,8 @@ namespace GLTFast
             {
                 m_Data.Dispose();
             }
+            if (m_NormalScratch.IsCreated) m_NormalScratch.Dispose();
+            if (m_TangentScratch.IsCreated) m_TangentScratch.Dispose();
 
             if (disposing)
             {
@@ -495,6 +525,37 @@ namespace GLTFast
                 m_TexCoords?.Dispose();
                 m_Bones?.Dispose();
             }
+        }
+
+        unsafe void PackCompactMainBuffer()
+        {
+            var outputStride = Marshal.SizeOf(typeof(TMainBuffer));
+            var output = (byte*)m_Data.GetUnsafePtr();
+            for (var i = 0; i < VertexCount; i++)
+            {
+                var normal = math.normalizesafe(m_NormalScratch[i]);
+                var normalOut = (short*)(output + i * outputStride + 12);
+                normalOut[0] = PackSNorm16(normal.x);
+                normalOut[1] = PackSNorm16(normal.y);
+                normalOut[2] = PackSNorm16(normal.z);
+                normalOut[3] = 0;
+                if (m_TangentScratch.IsCreated)
+                {
+                    var tangent = m_TangentScratch[i];
+                    var tangentOut = normalOut + 4;
+                    tangentOut[0] = PackSNorm16(tangent.x);
+                    tangentOut[1] = PackSNorm16(tangent.y);
+                    tangentOut[2] = PackSNorm16(tangent.z);
+                    tangentOut[3] = PackSNorm16(tangent.w);
+                }
+            }
+            m_NormalScratch.Dispose();
+            if (m_TangentScratch.IsCreated) m_TangentScratch.Dispose();
+        }
+
+        static short PackSNorm16(float value)
+        {
+            return (short)math.round(math.clamp(value, -1f, 1f) * short.MaxValue);
         }
     }
 }

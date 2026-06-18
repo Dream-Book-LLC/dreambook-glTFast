@@ -63,6 +63,7 @@ namespace GLTFast
             }
 
             var mainBufferType = GetMainBufferType(gltfImport, out hasNormals, out hasTangents);
+            var useCompactBuffer = CanUseCompactBuffer(mainBufferType);
 
             switch (mainBufferType)
             {
@@ -70,10 +71,14 @@ namespace GLTFast
                     m_VertexData = new VertexBufferGenerator<Vertex.VPos>(m_Primitives.Count, gltfImport);
                     break;
                 case MainBufferType.PosNorm:
-                    m_VertexData = new VertexBufferGenerator<Vertex.VPosNorm>(m_Primitives.Count, gltfImport);
+                    m_VertexData = useCompactBuffer
+                        ? new VertexBufferGenerator<Vertex.VPosNormCompact>(m_Primitives.Count, gltfImport, true)
+                        : new VertexBufferGenerator<Vertex.VPosNorm>(m_Primitives.Count, gltfImport);
                     break;
                 case MainBufferType.PosNormTan:
-                    m_VertexData = new VertexBufferGenerator<Vertex.VPosNormTan>(m_Primitives.Count, gltfImport);
+                    m_VertexData = useCompactBuffer
+                        ? new VertexBufferGenerator<Vertex.VPosNormTanCompact>(m_Primitives.Count, gltfImport, true)
+                        : new VertexBufferGenerator<Vertex.VPosNormTan>(m_Primitives.Count, gltfImport);
                     break;
                 default:
                     gltfImport.Logger?.Error(LogCode.BufferMainInvalidType, mainBufferType.ToString());
@@ -88,6 +93,24 @@ namespace GLTFast
             }
 
             m_VertexData.Initialize();
+            return true;
+        }
+
+        bool CanUseCompactBuffer(MainBufferType mainBufferType)
+        {
+            if ((mainBufferType & MainBufferType.Normal) == 0)
+                return false;
+            var needsTangents = (mainBufferType & MainBufferType.Tangent) != 0;
+            foreach (var primitive in m_Primitives)
+            {
+                var attributes = primitive.attributes;
+                if (primitive.targets != null
+                    || attributes.WEIGHTS_0 >= 0
+                    || attributes.JOINTS_0 >= 0
+                    || attributes.NORMAL < 0
+                    || (needsTangents && attributes.TANGENT < 0))
+                    return false;
+            }
             return true;
         }
 
