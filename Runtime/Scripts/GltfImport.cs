@@ -2287,9 +2287,6 @@ namespace GLTFast
 
             if (m_MeshOrders != null)
             {
-                await WaitForAllMeshGenerators();
-                await DeferAgent.BreakPoint();
-
                 await AssignAllAccessorData();
 
                 success = await CreateAllMeshAssignments();
@@ -2523,18 +2520,6 @@ namespace GLTFast
 
             m_MeshOrders = null;
             return true;
-        }
-
-        async Task WaitForAllMeshGenerators()
-        {
-            foreach (var meshOrder in m_MeshOrders)
-            {
-                if (meshOrder.generator == null) continue;
-                while (!meshOrder.generator.IsCompleted)
-                {
-                    await Task.Yield();
-                }
-            }
         }
 
         async Task GenerateMaterials()

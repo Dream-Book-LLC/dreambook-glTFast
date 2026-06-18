@@ -429,6 +429,10 @@ namespace GLTFast
             Profiler.EndSample();
 #endif
 
+            // The Unity mesh owns its uploaded vertex/index data now. Release decode
+            // scratch before the mesh processor runs or another order is finalized.
+            ReleaseTemporaryBuffers();
+
             Profiler.EndSample();
 
             return msh;
@@ -473,20 +477,24 @@ namespace GLTFast
             base.Dispose(disposing);
             if (disposing)
             {
-                m_VertexData?.Dispose();
-                if (m_Indices != null)
-                {
-                    for (var index = 0; index < m_Indices.Length; index++)
-                    {
-                        var indices = m_Indices[index];
-                        if (indices.IsCreated)
-                            indices.Dispose();
-                    }
-
-                    m_Indices = null;
-                }
+                ReleaseTemporaryBuffers();
             }
+        }
 
+        void ReleaseTemporaryBuffers()
+        {
+            m_VertexData?.Dispose();
+            m_VertexData = null;
+            if (m_Indices != null)
+            {
+                for (var index = 0; index < m_Indices.Length; index++)
+                {
+                    var indices = m_Indices[index];
+                    if (indices.IsCreated)
+                        indices.Dispose();
+                }
+                m_Indices = null;
+            }
             if (m_Disposables != null)
             {
                 foreach (var disposable in m_Disposables)
