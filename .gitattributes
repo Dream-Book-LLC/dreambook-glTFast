@@ -1,10 +1,2 @@
-# Specify filepatterns you want to assign special attributes.
-*.png filter=lfs diff=lfs merge=lfs -text
-*.glb filter=lfs diff=lfs merge=lfs -text
-*.bin filter=lfs diff=lfs merge=lfs -text
-*.gif filter=lfs diff=lfs merge=lfs -text
-*.jpg filter=lfs diff=lfs merge=lfs -text
-*.ktx2 filter=lfs diff=lfs merge=lfs -text
-*.ktx filter=lfs diff=lfs merge=lfs -text
-*.bytes filter=lfs diff=lfs merge=lfs -text
-*.webp filter=lfs diff=lfs merge=lfs -text
+# Package assets are stored directly in Git so Unity Package Manager builds do
+# not require separate Git LFS credentials after cloning this repository.
